@@ -1,0 +1,39 @@
+{
+  "fill" : {
+    "automatic-gradient" : "display-p3:0.96078,0.96078,0.96078,1.00000"
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "blend-mode" : "normal",
+          "fill" : "none",
+          "glass" : true,
+          "image-name" : "Frame 16 2.svg",
+          "name" : "Frame 16 2",
+          "position" : {
+            "scale" : 0.7,
+            "translation-in-points" : [
+              8.622319999999945,
+              -31.736319962874973
+            ]
+          }
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}
