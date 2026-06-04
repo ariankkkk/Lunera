@@ -20,10 +20,11 @@
 		111111111111111111111002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		111111111111111111111003 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
 		111111111111111111111004 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
-		111111111111111111111005 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
-		111111111111111111111006 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		111111111111111111111007 /* Preview Content */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "Preview Content"; sourceTree = "<group>"; };
-		111111111111111111111008 /* Lunera.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Lunera.app; sourceTree = BUILT_PRODUCTS_DIR; };
+			111111111111111111111005 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+			111111111111111111111006 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+			111111111111111111111007 /* Preview Content */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "Preview Content"; sourceTree = "<group>"; };
+			111111111111111111111008 /* Lunera.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Lunera.app; sourceTree = BUILT_PRODUCTS_DIR; };
+			111111111111111111111009 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -48,15 +49,80 @@
 		111111111111111111111302 /* Lunera */ = {
 			isa = PBXGroup;
 			children = (
+				111111111111111111111304 /* App */,
+				111111111111111111111305 /* Core */,
+				111111111111111111111307 /* Features */,
+				111111111111111111111310 /* Resources */,
+				111111111111111111111311 /* Supporting */,
+			);
+			path = Lunera;
+			sourceTree = "<group>";
+		};
+		111111111111111111111304 /* App */ = {
+			isa = PBXGroup;
+			children = (
 				111111111111111111111001 /* LuneraApp.swift */,
 				111111111111111111111002 /* ContentView.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		111111111111111111111305 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				111111111111111111111306 /* DesignSystem */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		111111111111111111111306 /* DesignSystem */ = {
+			isa = PBXGroup;
+			children = (
 				111111111111111111111003 /* DesignSystem.swift */,
-				111111111111111111111004 /* LoginView.swift */,
-				111111111111111111111005 /* HomeView.swift */,
+			);
+			path = DesignSystem;
+			sourceTree = "<group>";
+		};
+		111111111111111111111307 /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				111111111111111111111308 /* Auth */,
+				111111111111111111111309 /* Home */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		111111111111111111111308 /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+					111111111111111111111004 /* LoginView.swift */,
+			);
+			path = Auth;
+			sourceTree = "<group>";
+		};
+		111111111111111111111309 /* Home */ = {
+			isa = PBXGroup;
+			children = (
+					111111111111111111111005 /* HomeView.swift */,
+			);
+			path = Home;
+			sourceTree = "<group>";
+		};
+		111111111111111111111310 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
 				111111111111111111111006 /* Assets.xcassets */,
 				111111111111111111111007 /* Preview Content */,
 			);
-			path = Lunera;
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		111111111111111111111311 /* Supporting */ = {
+			isa = PBXGroup;
+			children = (
+				111111111111111111111009 /* Info.plist */,
+			);
+			path = Supporting;
 			sourceTree = "<group>";
 		};
 		111111111111111111111303 /* Products */ = {
@@ -268,15 +334,13 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"Lunera/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "\"Lunera/Resources/Preview Content\"";
 				DEVELOPMENT_TEAM = 8GA2TZS2CP;
 				ENABLE_DEBUG_DYLIB = NO;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = Lunera;
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+					GENERATE_INFOPLIST_FILE = NO;
+					INFOPLIST_FILE = Lunera/Supporting/Info.plist;
+					IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.arian.Lunera;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -295,15 +359,13 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"Lunera/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "\"Lunera/Resources/Preview Content\"";
 				DEVELOPMENT_TEAM = 8GA2TZS2CP;
 				ENABLE_DEBUG_DYLIB = NO;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = Lunera;
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+					GENERATE_INFOPLIST_FILE = NO;
+					INFOPLIST_FILE = Lunera/Supporting/Info.plist;
+					IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.arian.Lunera;
 				PRODUCT_NAME = "$(TARGET_NAME)";
