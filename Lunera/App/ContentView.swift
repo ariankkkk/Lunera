@@ -9,6 +9,7 @@ struct ContentView: View {
         let arguments = ProcessInfo.processInfo.arguments
         let environment = ProcessInfo.processInfo.environment
         let startRouteName = environment["LUNERA_START_ROUTE"]
+        let isAuthenticated = LocalAuthStore.shared.isSignedIn
         let initialRoute: StartRoute
         let startsInMainFlow = startRouteName == "main"
             || arguments.contains("--start-detail")
@@ -16,19 +17,26 @@ struct ContentView: View {
             || arguments.contains("--start-events")
             || arguments.contains("--start-event-detail")
             || arguments.contains("--start-event-creation")
+        let requestedRoute: StartRoute?
 
-        if startsInMainFlow {
-            initialRoute = .main
-        } else if arguments.contains("--start-welcome") || startRouteName == "welcome" {
-            initialRoute = .welcome
-        } else if arguments.contains("--start-recommendations") || startRouteName == "recommendations" {
-            initialRoute = .recommendations
-        } else if arguments.contains("--start-preferences") || startRouteName == "preferences" {
-            initialRoute = .preferences
-        } else if arguments.contains("--start-login") || startRouteName == "login" {
-            initialRoute = .login
+        if arguments.contains("--start-login") || startRouteName == "login" {
+            requestedRoute = .login
         } else if arguments.contains("--start-create-account") || startRouteName == "create" {
-            initialRoute = .createAccount
+            requestedRoute = .createAccount
+        } else if arguments.contains("--start-welcome") || startRouteName == "welcome" {
+            requestedRoute = .welcome
+        } else if arguments.contains("--start-recommendations") || startRouteName == "recommendations" {
+            requestedRoute = .recommendations
+        } else if arguments.contains("--start-preferences") || startRouteName == "preferences" {
+            requestedRoute = .preferences
+        } else if startsInMainFlow {
+            requestedRoute = .main
+        } else {
+            requestedRoute = nil
+        }
+
+        if let requestedRoute {
+            initialRoute = requestedRoute.requiresAuthentication && !isAuthenticated ? .login : requestedRoute
         } else {
             initialRoute = .welcome
         }
@@ -462,6 +470,15 @@ private enum StartRoute {
     case createAccount
     case login
     case main
+
+    var requiresAuthentication: Bool {
+        switch self {
+        case .recommendations, .preferences, .main:
+            true
+        case .welcome, .createAccount, .login:
+            false
+        }
+    }
 }
 
 private struct WelcomeView: View {

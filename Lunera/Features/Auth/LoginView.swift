@@ -1,5 +1,7 @@
 import SwiftUI
 import UIKit
+import Security
+import AuthenticationServices
 
 struct LoginView: View {
     let onLogin: () -> Void
@@ -179,9 +181,10 @@ private struct AuthAccountView: View {
     let onSubmit: () -> Void
     let onAlternate: () -> Void
 
-    @State private var name = ""
-    @State private var email = ""
+    @State private var username = ""
     @State private var password = ""
+    @State private var authMessage: String?
+    @State private var isSubmitting = false
     @State private var contentVisible = false
     @State private var keyboardHeight: CGFloat = 0
     @FocusState private var focusedField: AuthField?
@@ -215,32 +218,20 @@ private struct AuthAccountView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.76)
                     .frame(width: 310 * scale)
-                    .position(x: 196.5 * scale, y: mode == .create ? 467 * scale : 486 * scale)
+                    .position(x: 196.5 * scale, y: 486 * scale)
                     .bottomFadeIn(contentVisible, offset: 22 * scale, delay: 0.5)
 
                 VStack(spacing: 11 * scale) {
-                    if mode == .create {
-                        StartAuthField(
-                            placeholder: "Name",
-                            icon: "person.crop.circle",
-                            text: $name,
-                            field: .name,
-                            focusedField: $focusedField,
-                            scale: scale
-                        )
-                        .transition(.opacity.combined(with: .move(edge: .bottom)))
-                    }
-
                     StartAuthField(
-                        placeholder: "Email Address",
-                        icon: "envelope.circle",
-                        text: $email,
-                        field: .email,
+                        placeholder: "Username",
+                        icon: "person.crop.circle",
+                        text: $username,
+                        field: .username,
                         focusedField: $focusedField,
                         scale: scale
                     )
                     .textInputAutocapitalization(.never)
-                    .keyboardType(.emailAddress)
+                    .keyboardType(.asciiCapable)
 
                     StartAuthField(
                         placeholder: "Password",
@@ -256,28 +247,41 @@ private struct AuthAccountView: View {
                 .onTapGesture {
                 }
                 .frame(width: 300 * scale)
-                .position(x: 196.5 * scale, y: mode == .create ? 599 * scale : 596 * scale)
+                .position(x: 196.5 * scale, y: 596 * scale)
                 .bottomFadeIn(contentVisible, offset: 24 * scale, delay: 0.6)
 
+                if let authMessage {
+                    Text(authMessage)
+                        .font(.system(size: 13 * scale, weight: .semibold))
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(StartPalette.error)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.75)
+                        .frame(width: 280 * scale)
+                        .position(x: 196.5 * scale, y: 660 * scale)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+
                 StartPillButton(
-                    title: mode.buttonTitle,
+                    title: isSubmitting ? "Please wait" : mode.buttonTitle,
                     width: 235 * scale,
                     height: 46 * scale,
                     style: .primary,
                     scale: scale,
-                    action: onSubmit
+                    action: performSubmit
                 )
-                .position(x: 196.5 * scale, y: mode == .create ? 732 * scale : 710 * scale)
+                .position(x: 196.5 * scale, y: 710 * scale)
                 .bottomFadeIn(contentVisible, offset: 22 * scale, delay: 0.76)
 
-                StartApplePrototypeButton(
-                    title: mode.appleButtonTitle,
+                StartAppleSignInButton(
+                    mode: mode,
                     width: 235 * scale,
                     height: 46 * scale,
                     scale: scale,
-                    action: onSubmit
+                    onUnavailable: showAppleUnavailableMessage,
+                    onComplete: handleAppleSignIn
                 )
-                .position(x: 196.5 * scale, y: mode == .create ? 783 * scale : 759 * scale)
+                .position(x: 196.5 * scale, y: 759 * scale)
                 .bottomFadeIn(contentVisible, offset: 18 * scale, delay: 0.82)
 
                 HStack(spacing: 4 * scale) {
@@ -294,7 +298,7 @@ private struct AuthAccountView: View {
                 .font(.system(size: 16 * scale, weight: .regular))
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
-                .position(x: 196.5 * scale, y: mode == .create ? 823 * scale : 806 * scale)
+                .position(x: 196.5 * scale, y: 806 * scale)
                 .bottomFadeIn(contentVisible, offset: 16 * scale, delay: 0.88)
             }
             .frame(width: 393 * scale, height: 852 * scale)
@@ -313,6 +317,12 @@ private struct AuthAccountView: View {
             withAnimation(.spring(response: 0.7, dampingFraction: 0.9)) {
                 contentVisible = true
             }
+        }
+        .onChange(of: username) { _, _ in
+            clearMessage()
+        }
+        .onChange(of: password) { _, _ in
+            clearMessage()
         }
     }
 
@@ -350,11 +360,95 @@ private struct AuthAccountView: View {
         focusedField = nil
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
+
+    private func performSubmit() {
+        guard !isSubmitting else { return }
+
+        isSubmitting = true
+        clearMessage()
+
+        Task {
+            let result: Result<Void, LocalAuthStore.AuthError>
+            switch mode {
+            case .create:
+                result = await LocalAuthStore.shared.createAccount(username: username, password: password)
+            case .login:
+                result = await LocalAuthStore.shared.signIn(username: username, password: password)
+            }
+
+            await MainActor.run {
+                isSubmitting = false
+
+                switch result {
+                case .success:
+                    dismissKeyboard()
+                    onSubmit()
+                case .failure(let error):
+                    withAnimation(.spring(response: 0.34, dampingFraction: 0.9)) {
+                        authMessage = error.message
+                    }
+                }
+            }
+        }
+    }
+
+    private func handleAppleSignIn(_ result: Result<ASAuthorization, Error>) {
+        switch result {
+        case .success(let authorization):
+            switch LocalAuthStore.shared.signInWithApple(authorization: authorization) {
+            case .success:
+                dismissKeyboard()
+                onSubmit()
+            case .failure(let error):
+                showAuthMessage(error.message)
+            }
+        case .failure(let error):
+            guard !isAppleCancellation(error) else {
+                return
+            }
+
+            showAuthMessage(appleErrorMessage(for: error))
+        }
+    }
+
+    private func showAppleUnavailableMessage() {
+        showAuthMessage("Apple login needs a paid Apple Developer capability. Use username login for now.")
+    }
+
+    private func appleErrorMessage(for error: Error) -> String {
+        guard let authError = error as? ASAuthorizationError else {
+            return "Apple sign in failed. Please try again."
+        }
+
+        switch authError.code {
+        case .unknown:
+            return "Apple login is not enabled for this signed build. Use username login for now."
+        default:
+            return "Apple sign in failed. Please try again."
+        }
+    }
+
+    private func showAuthMessage(_ message: String) {
+        withAnimation(.spring(response: 0.34, dampingFraction: 0.9)) {
+            authMessage = message
+        }
+    }
+
+    private func isAppleCancellation(_ error: Error) -> Bool {
+        let authError = error as? ASAuthorizationError
+        return authError?.code == .canceled
+    }
+
+    private func clearMessage() {
+        guard authMessage != nil else { return }
+        withAnimation(.easeOut(duration: 0.18)) {
+            authMessage = nil
+        }
+    }
 }
 
 private enum AuthField: Hashable {
-    case name
-    case email
+    case username
     case password
 }
 
@@ -520,7 +614,7 @@ private struct StartAuthField: View {
                         .focused($focusedField, equals: field)
                 } else {
                     TextField("", text: $text)
-                        .textContentType(placeholder == "Email Address" ? .emailAddress : .name)
+                        .textContentType(.username)
                         .focused($focusedField, equals: field)
                 }
             }
@@ -573,35 +667,557 @@ private struct StartPillButton: View {
     }
 }
 
-private struct StartApplePrototypeButton: View {
-    let title: String
+private struct StartAppleSignInButton: View {
+    let mode: AuthMode
     let width: CGFloat
     let height: CGFloat
     let scale: CGFloat
-    let action: () -> Void
+    let onUnavailable: () -> Void
+    let onComplete: (Result<ASAuthorization, Error>) -> Void
+
+    @StateObject private var coordinator = AppleSignInCoordinator()
 
     var body: some View {
-        Button(action: action) {
+        Button {
+            guard AppleSignInConfiguration.isEnabled else {
+                onUnavailable()
+                return
+            }
+
+            coordinator.start(onComplete: onComplete)
+        } label: {
             HStack(spacing: 8 * scale) {
                 Image(systemName: "apple.logo")
-                    .font(.system(size: 18 * scale, weight: .semibold))
+                    .font(.system(size: 17 * scale, weight: .semibold))
 
-                Text(title)
+                Text(mode.appleButtonTitle)
                     .font(.system(size: 16 * scale, weight: .semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.78)
             }
             .foregroundStyle(.white)
-            .padding(.horizontal, 18 * scale)
             .frame(width: width, height: height)
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .background {
-            Capsule()
-                .fill(.black)
-                .shadow(color: .black.opacity(0.14), radius: 11 * scale, y: 5 * scale)
+        .background(Color.black, in: Capsule())
+        .shadow(color: .black.opacity(0.14), radius: 11 * scale, y: 5 * scale)
+        .accessibilityLabel(mode.appleButtonTitle)
+    }
+}
+
+private final class AppleSignInCoordinator: NSObject, ObservableObject {
+    private var onComplete: ((Result<ASAuthorization, Error>) -> Void)?
+    private var activeController: ASAuthorizationController?
+
+    func start(onComplete: @escaping (Result<ASAuthorization, Error>) -> Void) {
+        self.onComplete = onComplete
+
+        let provider = ASAuthorizationAppleIDProvider()
+        let request = provider.createRequest()
+        request.requestedScopes = [.fullName, .email]
+
+        let controller = ASAuthorizationController(authorizationRequests: [request])
+        controller.delegate = self
+        controller.presentationContextProvider = self
+        activeController = controller
+        controller.performRequests()
+    }
+
+    private func finish(_ result: Result<ASAuthorization, Error>) {
+        onComplete?(result)
+        onComplete = nil
+        activeController = nil
+    }
+}
+
+extension AppleSignInCoordinator: ASAuthorizationControllerDelegate {
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
+        finish(.success(authorization))
+    }
+
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
+        finish(.failure(error))
+    }
+}
+
+extension AppleSignInCoordinator: ASAuthorizationControllerPresentationContextProviding {
+    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+            .first { $0.isKeyWindow } ?? ASPresentationAnchor()
+    }
+}
+
+private enum AppleSignInConfiguration {
+    static var isEnabled: Bool {
+        guard let value = Bundle.main.object(forInfoDictionaryKey: "LUNERAAppleSignInEnabled") as? String else {
+            return false
         }
+
+        return ["1", "YES", "TRUE"].contains(value.trimmingCharacters(in: .whitespacesAndNewlines).uppercased())
+    }
+}
+
+final class LocalAuthStore {
+    enum AuthError: Error {
+        case invalidUsername
+        case invalidPassword
+        case accountExists
+        case accountMissing
+        case wrongPassword
+        case emailConfirmationRequired
+        case emailSignupsDisabled
+        case generatedEmailRejected
+        case invalidAppleCredential
+        case missingConfiguration
+        case networkFailure
+        case keychainFailure
+        case server(String)
+
+        var message: String {
+            switch self {
+            case .invalidUsername:
+                "Use 3-24 letters, numbers, dots, or underscores."
+            case .invalidPassword:
+                "Password must be at least 6 characters."
+            case .accountExists:
+                "That username already exists."
+            case .accountMissing:
+                "No account found for that username."
+            case .wrongPassword:
+                "Username or password is incorrect."
+            case .emailConfirmationRequired:
+                "Create the account again to finish setup."
+            case .emailSignupsDisabled:
+                "Turn Email signups on in Supabase Auth."
+            case .generatedEmailRejected:
+                "Supabase rejected this username. Try another one."
+            case .invalidAppleCredential:
+                "Apple did not return a valid login."
+            case .missingConfiguration:
+                "Supabase is not configured for this build."
+            case .networkFailure:
+                "Could not reach Supabase. Check your connection."
+            case .keychainFailure:
+                "Could not save login. Please try again."
+            case .server(let message):
+                message
+            }
+        }
+    }
+
+    static let shared = LocalAuthStore()
+
+    private let service = "com.lunera.local-auth"
+    private let sessionAccount = "supabase-session"
+    private let signedInUsernameKey = "LUNERALocalSignedInUsername"
+    private let allowedUsernameCharacters = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "._"))
+    private let usernameEmailDomain = "users.lunera.app"
+    private let urlSession: URLSession
+
+    private lazy var configuration: SupabaseConfiguration? = {
+        guard let urlString = Bundle.main.object(forInfoDictionaryKey: "LUNERASupabaseURL") as? String,
+              let url = URL(string: urlString),
+              let publishableKey = Bundle.main.object(forInfoDictionaryKey: "LUNERASupabasePublishableKey") as? String,
+              !publishableKey.isEmpty else {
+            return nil
+        }
+
+        return SupabaseConfiguration(url: url, publishableKey: publishableKey)
+    }()
+
+    private init(urlSession: URLSession = .shared) {
+        self.urlSession = urlSession
+    }
+
+    var isSignedIn: Bool {
+        guard let data = sessionData() else {
+            return false
+        }
+
+        guard let session = try? JSONDecoder().decode(SupabaseSession.self, from: data),
+              !session.accessToken.isEmpty,
+              !session.refreshToken.isEmpty else {
+            signOut()
+            return false
+        }
+
+        if let expiresAt = session.expiresAt, expiresAt <= Date() {
+            signOut()
+            return false
+        }
+
+        return true
+    }
+
+    @discardableResult
+    func createAccount(username: String, password: String) async -> Result<Void, AuthError> {
+        let normalizedUsername = normalize(username)
+        guard isValidUsername(normalizedUsername) else {
+            return .failure(.invalidUsername)
+        }
+        guard isValidPassword(password) else {
+            return .failure(.invalidPassword)
+        }
+
+        let body: [String: Any] = [
+            "username": normalizedUsername,
+            "password": password,
+        ]
+
+        do {
+            let response: SupabaseAuthResponse = try await functionRequest(
+                name: "username-signup",
+                method: "POST",
+                body: body,
+                accessToken: nil
+            )
+
+            if let session = response.session(username: normalizedUsername) {
+                return saveSession(session)
+            }
+
+            return .failure(.emailConfirmationRequired)
+        } catch let error as AuthError {
+            return .failure(error)
+        } catch {
+            return .failure(.networkFailure)
+        }
+    }
+
+    @discardableResult
+    func signIn(username: String, password: String) async -> Result<Void, AuthError> {
+        let normalizedUsername = normalize(username)
+        guard isValidUsername(normalizedUsername) else {
+            return .failure(.invalidUsername)
+        }
+        guard isValidPassword(password) else {
+            return .failure(.invalidPassword)
+        }
+
+        let body: [String: Any] = [
+            "email": authEmail(for: normalizedUsername),
+            "password": password
+        ]
+
+        do {
+            let response: SupabaseAuthResponse = try await authRequest(
+                path: "token",
+                method: "POST",
+                queryItems: [URLQueryItem(name: "grant_type", value: "password")],
+                body: body,
+                accessToken: nil
+            )
+
+            guard let session = response.session(username: normalizedUsername) else {
+                return .failure(.wrongPassword)
+            }
+
+            return saveSession(session)
+        } catch let error as AuthError {
+            return .failure(error)
+        } catch {
+            return .failure(.networkFailure)
+        }
+    }
+
+    @discardableResult
+    func signInWithApple(authorization: ASAuthorization) -> Result<Void, AuthError> {
+        guard (authorization.credential as? ASAuthorizationAppleIDCredential) != nil else {
+            return .failure(.invalidAppleCredential)
+        }
+
+        return .failure(.server("Apple login still needs Supabase Apple provider setup."))
+    }
+
+    func signOut() {
+        UserDefaults.standard.removeObject(forKey: signedInUsernameKey)
+        SecItemDelete(keychainLookupQuery(account: sessionAccount) as CFDictionary)
+    }
+
+    private func normalize(_ username: String) -> String {
+        username.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    private func isValidUsername(_ username: String) -> Bool {
+        guard (3...24).contains(username.count) else {
+            return false
+        }
+
+        return username.unicodeScalars.allSatisfy { allowedUsernameCharacters.contains($0) }
+    }
+
+    private func isValidPassword(_ password: String) -> Bool {
+        password.count >= 6
+    }
+
+    private func authEmail(for username: String) -> String {
+        let safeLocalPart = username
+            .replacingOccurrences(of: ".", with: "-dot-")
+            .replacingOccurrences(of: "_", with: "-under-")
+
+        return "\(safeLocalPart)@\(usernameEmailDomain)"
+    }
+
+    private func sessionData() -> Data? {
+        var query = keychainLookupQuery(account: sessionAccount)
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+
+        var item: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        guard status == errSecSuccess else {
+            return nil
+        }
+
+        return item as? Data
+    }
+
+    private func saveSession(_ session: SupabaseSession) -> Result<Void, AuthError> {
+        do {
+            let data = try JSONEncoder().encode(session)
+            let status = saveOrUpdateData(data, for: sessionAccount)
+            guard status == errSecSuccess else {
+                return .failure(.keychainFailure)
+            }
+
+            UserDefaults.standard.set(session.username, forKey: signedInUsernameKey)
+            return .success(())
+        } catch {
+            return .failure(.keychainFailure)
+        }
+    }
+
+    private func saveOrUpdateData(_ data: Data, for account: String) -> OSStatus {
+        let addStatus = SecItemAdd(keychainQuery(account: account, data: data) as CFDictionary, nil)
+        guard addStatus == errSecDuplicateItem else {
+            return addStatus
+        }
+
+        let attributes = [kSecValueData as String: data]
+        return SecItemUpdate(keychainLookupQuery(account: account) as CFDictionary, attributes as CFDictionary)
+    }
+
+    private func keychainQuery(account: String, data: Data) -> [String: Any] {
+        var query = keychainLookupQuery(account: account)
+        query[kSecValueData as String] = data
+        query[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        return query
+    }
+
+    private func keychainLookupQuery(account: String) -> [String: Any] {
+        [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account
+        ]
+    }
+
+    private func authRequest<Response: Decodable>(
+        path: String,
+        method: String,
+        queryItems: [URLQueryItem] = [],
+        body: [String: Any],
+        accessToken: String?
+    ) async throws -> Response {
+        guard let configuration else {
+            throw AuthError.missingConfiguration
+        }
+
+        var components = URLComponents(url: configuration.url.appending(path: "auth/v1/\(path)"), resolvingAgainstBaseURL: false)
+        components?.queryItems = queryItems.isEmpty ? nil : queryItems
+        guard let url = components?.url else {
+            throw AuthError.missingConfiguration
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.setValue(configuration.publishableKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(accessToken ?? configuration.publishableKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await urlSession.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw AuthError.networkFailure
+        }
+
+        guard (200...299).contains(httpResponse.statusCode) else {
+            throw mapSupabaseError(data: data, statusCode: httpResponse.statusCode)
+        }
+
+        return try JSONDecoder().decode(Response.self, from: data)
+    }
+
+    private func functionRequest<Response: Decodable>(
+        name: String,
+        method: String,
+        body: [String: Any],
+        accessToken: String?
+    ) async throws -> Response {
+        guard let configuration else {
+            throw AuthError.missingConfiguration
+        }
+
+        let url = configuration.url.appending(path: "functions/v1/\(name)")
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.setValue(configuration.publishableKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(accessToken ?? configuration.publishableKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await urlSession.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw AuthError.networkFailure
+        }
+
+        guard (200...299).contains(httpResponse.statusCode) else {
+            throw mapSupabaseError(data: data, statusCode: httpResponse.statusCode)
+        }
+
+        return try JSONDecoder().decode(Response.self, from: data)
+    }
+
+    private func mapSupabaseError(data: Data, statusCode: Int) -> AuthError {
+        let decoder = JSONDecoder()
+        let errorResponse = try? decoder.decode(SupabaseErrorResponse.self, from: data)
+        let rawMessage = errorResponse?.message
+            ?? errorResponse?.errorDescription
+            ?? errorResponse?.error
+            ?? "Supabase returned an error."
+        let normalized = "\(errorResponse?.code ?? "") \(rawMessage)".lowercased()
+
+        if normalized.contains("email_provider_disabled")
+            || normalized.contains("email signups are disabled") {
+            return .emailSignupsDisabled
+        }
+
+        if normalized.contains("email_address_invalid")
+            || (normalized.contains("email address") && normalized.contains("invalid")) {
+            return .generatedEmailRejected
+        }
+
+        if normalized.contains("invalid_username") {
+            return .invalidUsername
+        }
+
+        if normalized.contains("account_exists")
+            || normalized.contains("already")
+            || normalized.contains("registered") {
+            return .accountExists
+        }
+
+        if normalized.contains("email not confirmed")
+            || normalized.contains("email_not_confirmed")
+            || normalized.contains("over_email_send_rate_limit")
+            || normalized.contains("email rate limit")
+            || normalized.contains("email address not authorized") {
+            return .emailConfirmationRequired
+        }
+
+        if normalized.contains("invalid login") || normalized.contains("invalid credentials") {
+            return .wrongPassword
+        }
+
+        if normalized.contains("password") && normalized.contains("characters") {
+            return .invalidPassword
+        }
+
+        if statusCode == 400 {
+            return .server(rawMessage)
+        }
+
+        return .server(rawMessage)
+    }
+}
+
+private struct SupabaseConfiguration {
+    let url: URL
+    let publishableKey: String
+}
+
+private struct SupabaseSession: Codable {
+    let accessToken: String
+    let refreshToken: String
+    let expiresAt: Date?
+    let userId: String
+    let username: String
+}
+
+private struct SupabaseAuthResponse: Decodable {
+    let accessToken: String?
+    let refreshToken: String?
+    let expiresIn: Int?
+    let expiresAt: Int?
+    let user: SupabaseUser?
+
+    enum CodingKeys: String, CodingKey {
+        case accessToken = "access_token"
+        case refreshToken = "refresh_token"
+        case expiresIn = "expires_in"
+        case expiresAt = "expires_at"
+        case user
+    }
+
+    func session(username: String) -> SupabaseSession? {
+        guard let accessToken,
+              let refreshToken,
+              let userId = user?.id else {
+            return nil
+        }
+
+        let expiryDate: Date?
+        if let expiresAt {
+            expiryDate = Date(timeIntervalSince1970: TimeInterval(expiresAt))
+        } else if let expiresIn {
+            expiryDate = Date().addingTimeInterval(TimeInterval(expiresIn))
+        } else {
+            expiryDate = nil
+        }
+
+        return SupabaseSession(
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+            expiresAt: expiryDate,
+            userId: userId,
+            username: username
+        )
+    }
+}
+
+private struct SupabaseUser: Decodable {
+    let id: String
+}
+
+private struct SupabaseErrorResponse: Decodable {
+    let code: String?
+    let message: String?
+    let errorDescription: String?
+    let error: String?
+
+    enum CodingKeys: String, CodingKey {
+        case errorCode = "error_code"
+        case code
+        case message = "msg"
+        case messageText = "message"
+        case errorDescription = "error_description"
+        case error
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let errorCode = try? container.decodeIfPresent(String.self, forKey: .errorCode)
+        let textCode = try? container.decodeIfPresent(String.self, forKey: .code)
+        let numericCode = try? container.decodeIfPresent(Int.self, forKey: .code)
+        code = errorCode ?? textCode ?? numericCode.map(String.init)
+        message = try container.decodeIfPresent(String.self, forKey: .message)
+            ?? container.decodeIfPresent(String.self, forKey: .messageText)
+            ?? container.decodeIfPresent(String.self, forKey: .error)
+        errorDescription = try container.decodeIfPresent(String.self, forKey: .errorDescription)
+        error = try container.decodeIfPresent(String.self, forKey: .error)
     }
 }
 
@@ -650,6 +1266,7 @@ private enum StartPalette {
     static let background = Color(red: 0.961, green: 0.961, blue: 0.969)
     static let ink = Color(red: 0.110, green: 0.137, blue: 0.200)
     static let control = Color(red: 0.898, green: 0.900, blue: 0.914)
+    static let error = Color(red: 0.62, green: 0.10, blue: 0.14)
 }
 
 private extension View {

@@ -22,6 +22,12 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>LUNERAAppleSignInEnabled</key>
+	<string>$(LUNERA_APPLE_SIGN_IN_ENABLED)</string>
+	<key>LUNERASupabasePublishableKey</key>
+	<string>$(LUNERA_SUPABASE_PUBLISHABLE_KEY)</string>
+	<key>LUNERASupabaseURL</key>
+	<string>$(LUNERA_SUPABASE_URL)</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
