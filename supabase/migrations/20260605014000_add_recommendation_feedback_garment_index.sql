@@ -1,0 +1,2 @@
+create index recommendation_feedback_garment_id_idx
+on public.recommendation_feedback(garment_id);

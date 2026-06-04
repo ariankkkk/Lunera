@@ -9,7 +9,7 @@ struct ContentView: View {
         let arguments = ProcessInfo.processInfo.arguments
         let environment = ProcessInfo.processInfo.environment
         let startRouteName = environment["LUNERA_START_ROUTE"]
-        let isAuthenticated = LocalAuthStore.shared.isSignedIn
+        let isAuthenticated = AuthRepository.shared.isSignedIn
         let initialRoute: StartRoute
         let startsInMainFlow = startRouteName == "main"
             || arguments.contains("--start-detail")
@@ -87,6 +87,12 @@ struct ContentView: View {
             }
         }
         .preferredColorScheme(.light)
+        .task {
+            let restored = await AuthRepository.shared.restoreSession()
+            if !restored, startRoute.requiresAuthentication {
+                go(.login)
+            }
+        }
     }
 
     private func go(_ route: StartRoute) {

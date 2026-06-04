@@ -14,6 +14,7 @@ User profile linked to Supabase Auth.
 
 Fields:
 - `id uuid primary key references auth.users(id)`
+- `username text unique`
 - `display_name text`
 - `avatar_url text`
 - `home_city text default 'Baku'`
@@ -176,4 +177,3 @@ RLS:
 - Enable RLS in the same migration that creates each public table.
 - Add indexes for `user_id`, `event_id`, `garment_id`, `store_id`, and `observed_at`.
 - Run Supabase security and performance advisors after every schema migration.
-
